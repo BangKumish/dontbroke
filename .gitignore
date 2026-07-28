@@ -1,0 +1,41 @@
+# Built output
+build/
+app/build/
+
+# Gradle
+.gradle/
+
+# Kotlin
+.kotlin/
+
+# Local machine config — contains sdk.dir and (optionally) your GEMINI_API_KEY.
+# Never commit this.
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Signing material — a leaked keystore cannot be revoked
+*.jks
+*.keystore
+keystore.properties
+
+# Android build leftovers
+*.apk
+*.aab
+*.ap_
+*.dex
+/captures/
+.externalNativeBuild/
+.cxx/
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+
+# OS
+.DS_Store
+Thumbs.db
