@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,9 +21,18 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // AI key: put GEMINI_API_KEY in local.properties or env; empty by default.
-        val geminiKey = (project.findProperty("GEMINI_API_KEY") as String?)
-            ?: System.getenv("GEMINI_API_KEY") ?: ""
+        // AI key: local.properties first, then -P/gradle.properties, then env.
+        // findProperty() does NOT read local.properties — Gradle never loads that
+        // file itself, which is why the key silently compiled to "" and every
+        // Gemini call came back 403.
+        val localProps = Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        val geminiKey = localProps.getProperty("GEMINI_API_KEY")
+            ?: (project.findProperty("GEMINI_API_KEY") as String?)
+            ?: System.getenv("GEMINI_API_KEY")
+            ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
     }
 
@@ -70,9 +81,17 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.android)
+    // profileinstaller drags in 1.1.0, but androidx.test:core needs 1.2.0 and
+    // androidx.concurrent is an atomic group. AGP's consistent resolution then
+    // pins the app's version into androidTest as `strictly`, so the two disagree
+    // and lint/instrumentation fail to resolve. Naming it here settles both.
+    implementation(libs.androidx.concurrent.futures)
 
     testImplementation(libs.junit)
     testImplementation(libs.sqlite.jdbc)
+    // the BOM is what versions ui-test-junit4 — without it here, the androidTest
+    // classpath asks for a versionless artifact and cannot resolve
+    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.ui.test.junit4)

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -16,10 +17,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import id.bangkumis.dontbroke.data.local.entity.AccountType
 import id.bangkumis.dontbroke.domain.model.Account
+import id.bangkumis.dontbroke.domain.model.AnalyticsTimeFrame
 import id.bangkumis.dontbroke.presentation.components.AddAccountDialog
-import id.bangkumis.dontbroke.presentation.components.DonutChart
-import id.bangkumis.dontbroke.presentation.components.DonutSlice
+import id.bangkumis.dontbroke.presentation.components.AnalyticsSection
+import id.bangkumis.dontbroke.presentation.components.DateRangePickerDialog
+import id.bangkumis.dontbroke.presentation.components.DayHeader
 import id.bangkumis.dontbroke.presentation.components.EditInitialBalanceDialog
+import id.bangkumis.dontbroke.presentation.components.TimeFrameChips
 import id.bangkumis.dontbroke.presentation.components.TransactionItem
 import java.text.NumberFormat
 import java.util.Locale
@@ -33,12 +37,23 @@ private val idr = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
 fun HomeScreen(
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit = {},
+    onShowAllTransactions: () -> Unit = {},
     vm: HomeViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsState()
+    val categoryState by vm.categorySpending.collectAsState()
+    val trendState by vm.spendingTrend.collectAsState()
+    val comparison by vm.comparison.collectAsState()
+    val range by vm.range.collectAsState()
+    val canStepForward by vm.canStepForward.collectAsState()
+    val feedRange by vm.feedRange.collectAsState()
+    val feedDays by vm.feedDays.collectAsState()
     val colors = MaterialTheme.colorScheme
     var showAddAccount by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<Account?>(null) }
+
+    // The feed's own date picker, opened by its Custom chip.
+    var pickingFeedRange by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.fetchInsight() }
 
@@ -109,30 +124,19 @@ fun HomeScreen(
                 }
             }
 
-            // Donut chart
+            // Analytics — category ring, spending trend, income vs expense
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Budget Allocation", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        val alloc = state.allocation
-                        DonutChart(
-                            slices = listOf(
-                                DonutSlice(alloc.essential.toFloat(), colors.primary, "Essential"),
-                                DonutSlice(alloc.savings.toFloat(), colors.secondary, "Savings"),
-                                DonutSlice(alloc.daily.toFloat(), colors.tertiary, "Daily"),
-                            ).filter { it.value > 0 }
-                        )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            LegendItem("Essential", idr.format(alloc.essential), colors.primary)
-                            LegendItem("Savings", idr.format(alloc.savings), colors.secondary)
-                            LegendItem("Daily", idr.format(alloc.daily), colors.tertiary)
-                        }
-                    }
-                }
+                AnalyticsSection(
+                    range = range,
+                    canStepForward = canStepForward,
+                    onTimeFrameChange = vm::onTimeFrameChange,
+                    onStep = vm::onStep,
+                    onCustomRange = vm::onCustomRange,
+                    categorySpending = categoryState,
+                    spendingTrend = trendState,
+                    income = comparison.income.toLong(),
+                    expense = comparison.expense.toLong()
+                )
             }
 
             // AI insight
@@ -149,23 +153,61 @@ fun HomeScreen(
                 }
             }
 
-            // Recent transactions header
+            // Recent transactions — grouped by day, scoped by its own timeframe
             item {
-                Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-
-            if (state.recentTransactions.isEmpty()) {
-                item { Text("No transactions yet.", color = colors.onSurfaceVariant) }
-            } else {
-                items(state.recentTransactions, key = { it.id }) { txn ->
-                    TransactionItem(
-                        transaction = txn,
-                        onEdit = { onEditTransaction(it.id) },
-                        onDelete = vm::delete
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            feedRange.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // its own filter, independent of the analytics one above
+                    TimeFrameChips(feedRange.frame) { frame ->
+                        if (frame == AnalyticsTimeFrame.CUSTOM) pickingFeedRange = true
+                        else vm.onFeedFrameChange(frame)
+                    }
                 }
             }
+
+            if (feedDays.isEmpty()) {
+                item { Text("No transactions in this period.", color = colors.onSurfaceVariant) }
+            } else {
+                feedDays.forEach { day ->
+                    item(key = "h${day.dayStart}") { DayHeader(day) }
+                    items(day.transactions, key = { it.id }) { txn ->
+                        TransactionItem(
+                            transaction = txn,
+                            onEdit = { onEditTransaction(it.id) },
+                            onDelete = vm::delete,
+                            showDate = false // the header already says the date
+                        )
+                    }
+                }
+            }
+
+            item {
+                TextButton(
+                    onClick = onShowAllTransactions,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("View All Transactions") }
+            }
         }
+    }
+
+    if (pickingFeedRange) {
+        DateRangePickerDialog(
+            onDismiss = { pickingFeedRange = false },
+            onConfirm = { start, end -> pickingFeedRange = false; vm.onFeedCustomRange(start, end) }
+        )
     }
 
     if (showAddAccount) {
@@ -281,13 +323,5 @@ private fun BalanceStat(label: String, value: String, color: androidx.compose.ui
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium, color = color, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun LegendItem(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("●  $label", color = color, style = MaterialTheme.typography.labelSmall)
-        Text(value, style = MaterialTheme.typography.labelSmall)
     }
 }

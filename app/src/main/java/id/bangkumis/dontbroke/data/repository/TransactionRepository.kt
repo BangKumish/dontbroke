@@ -16,6 +16,24 @@ class TransactionRepository @Inject constructor(private val dao: TransactionDao)
         list.map { it.toDomain() }
     }
 
+    /** Newest [limit] rows, bounded in SQL so the dashboard never loads the ledger. */
+    fun recent(limit: Int): Flow<List<Transaction>> =
+        dao.getRecent(limit).map { list -> list.map { it.toDomain() } }
+
+    /** History feed. A blank filter means "all" — see [TransactionDao.getFiltered]. */
+    fun filtered(
+        from: Long,
+        until: Long,
+        category: String,
+        account: String,
+        location: String
+    ): Flow<List<Transaction>> =
+        dao.getFiltered(from, until, category, account, location)
+            .map { list -> list.map { it.toDomain() } }
+
+    fun categories(): Flow<List<String>> = dao.distinctCategories()
+    fun locations(): Flow<List<String>> = dao.distinctLocations()
+
     fun totalIncome(): Flow<Long> = dao.totalIncome()
     fun totalExpense(): Flow<Long> = dao.totalExpense()
 

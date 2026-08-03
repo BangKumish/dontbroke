@@ -18,6 +18,9 @@ local.properties
 *.ipr
 *.iws
 
+# Machine-local agent config — absolute paths, no use to anyone else
+.claude/settings.local.json
+
 # Signing material — a leaked keystore cannot be revoked
 *.jks
 *.keystore

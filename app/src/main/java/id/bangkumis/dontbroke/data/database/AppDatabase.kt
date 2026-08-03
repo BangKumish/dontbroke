@@ -12,7 +12,7 @@ import id.bangkumis.dontbroke.data.local.entity.TransactionEntity
 
 @Database(
     entities = [TransactionEntity::class, AccountEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -59,6 +59,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Indexes transactions.timestamp — every list and aggregate sorts on it. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(CREATE_TRANSACTIONS_TIMESTAMP_INDEX)
+            }
+        }
+
         // Must match Room's generated schema exactly or startup validation fails.
         internal const val CREATE_ACCOUNTS =
             "CREATE TABLE IF NOT EXISTS `accounts` (" +
@@ -68,6 +75,9 @@ abstract class AppDatabase : RoomDatabase() {
                 "`initialBalance` REAL NOT NULL, " +
                 "`currentBalance` REAL NOT NULL, " +
                 "`iconResOrName` TEXT)"
+
+        internal const val CREATE_TRANSACTIONS_TIMESTAMP_INDEX =
+            "CREATE INDEX IF NOT EXISTS `index_transactions_timestamp` ON `transactions` (`timestamp`)"
 
         internal const val CREATE_ACCOUNTS_INDEX =
             "CREATE UNIQUE INDEX IF NOT EXISTS `index_accounts_name` ON `accounts` (`name`)"

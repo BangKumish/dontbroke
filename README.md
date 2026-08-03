@@ -12,7 +12,11 @@ balances, and a spend counter for today, this week, and this month.
 - **Real per-account balances.** `initialBalance + income − expenses`, recomputed
   from history rather than nudged by deltas, so the numbers cannot drift.
 - **Spend summary** — today, this week (Monday–Sunday), and this month.
-- **50/30/20 budget allocation** shown as a donut chart.
+- **Analytics dashboard** — category breakdown ring, weekly spending trend bars,
+  income vs expense for the selected timeframe (day/week/month/year/custom).
+- **Transaction history** — filtered by timeframe, category, account, or location,
+  grouped by day with daily net balances.
+- **Swipe gestures** — swipe right to edit, swipe left to delete (with confirmation).
 - **AI insight** — an optional one-paragraph read on your spending, via Gemini.
 
 ## Build
@@ -20,8 +24,8 @@ balances, and a spend counter for today, this week, and this month.
 Requires JDK 11+ and the Android SDK (API 37).
 
 ```bash
-git clone https://github.com/<your-user>/DontBroke.git
-cd DontBroke
+git clone https://github.com/BangKumish/dontbroke.git
+cd dontbroke
 ./gradlew assembleDebug
 ```
 
@@ -56,10 +60,11 @@ publish a build with a key you care about.
 ./gradlew testDebugUnitTest
 ```
 
-The balance arithmetic and the spend-window boundaries are the parts worth getting
-wrong quietly, so both are covered: `AccountBalanceSqlTest` runs the production SQL
-against real SQLite on the JVM, and `SpendWindowTest` pins the day/week/month
-boundaries in a fixed timezone.
+79 tests covering balance arithmetic, spend-window boundaries, analytics queries,
+timeframe stepping, day grouping, and chart logic. `AccountBalanceSqlTest` and
+`AnalyticsSqlTest` run the production SQL against real SQLite on the JVM; the
+window and stepping tests pin date/time in Asia/Jakarta so boundaries are
+machine-independent.
 
 ## Stack
 
@@ -67,7 +72,7 @@ Kotlin · Jetpack Compose (Material 3) · MVVM · Room · Hilt · Retrofit · Co
 
 ```
 data/        Room entities, DAOs, migrations, repositories
-domain/      plain models
+domain/      plain models + use cases
 presentation/  Compose screens + ViewModels
 network/     Gemini API
 di/          Hilt modules
@@ -77,10 +82,10 @@ minSdk 24 · targetSdk 36 · compileSdk 37
 
 ## Database
 
-Room, currently at version 4, with migrations from v1 — upgrading an existing
-install keeps its transactions. The v4 migration clears the accounts older builds
+Room, currently at version 5, with migrations from v1 — upgrading an existing
+install keeps its transactions. The v4 migration cleared the accounts older builds
 pre-seeded, but only ones left untouched: any account you gave a starting balance
-or already recorded a transaction against stays put.
+or already recorded a transaction against stayed put.
 
 ## License
 

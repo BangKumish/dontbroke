@@ -1,5 +1,9 @@
 package id.bangkumis.dontbroke.presentation.home
 
+import id.bangkumis.dontbroke.domain.model.monthWindow
+import id.bangkumis.dontbroke.domain.model.todayWindow
+import id.bangkumis.dontbroke.domain.model.weekWindow
+import id.bangkumis.dontbroke.domain.model.yearWindow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -103,6 +107,22 @@ class SpendWindowTest {
         assertEquals(
             "2026-12-01 00:00" to "2027-01-01 00:00",
             monthWindow(at("2026-12-20 09:00")).render()
+        )
+    }
+
+    @Test
+    fun `the year runs from 1 January to the next 1 January`() {
+        assertEquals(
+            "2026-01-01 00:00" to "2027-01-01 00:00",
+            yearWindow(at("2026-07-15 09:00")).render()
+        )
+    }
+
+    @Test
+    fun `New Year's Eve still belongs to the year it closes`() {
+        assertEquals(
+            "2026-01-01 00:00" to "2027-01-01 00:00",
+            yearWindow(at("2026-12-31 23:59")).render()
         )
     }
 

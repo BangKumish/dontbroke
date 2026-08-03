@@ -7,10 +7,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import id.bangkumis.dontbroke.presentation.addtransaction.AddTransactionScreen
+import id.bangkumis.dontbroke.presentation.history.TransactionHistoryScreen
 import id.bangkumis.dontbroke.presentation.home.HomeScreen
 
 private const val HOME = "home"
 private const val ADD = "add"
+private const val HISTORY = "history"
 
 @Composable
 fun AppNavGraph() {
@@ -19,6 +21,13 @@ fun AppNavGraph() {
         composable(HOME) {
             HomeScreen(
                 onAddTransaction = { nav.navigate(ADD) },
+                onEditTransaction = { id -> nav.navigate("$ADD?id=$id") },
+                onShowAllTransactions = { nav.navigate(HISTORY) }
+            )
+        }
+        composable(HISTORY) {
+            TransactionHistoryScreen(
+                onBack = { nav.popBackStack() },
                 onEditTransaction = { id -> nav.navigate("$ADD?id=$id") }
             )
         }

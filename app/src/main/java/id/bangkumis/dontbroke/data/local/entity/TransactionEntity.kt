@@ -2,11 +2,13 @@ package id.bangkumis.dontbroke.data.local.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 enum class TransactionType { INCOME, EXPENSE }
 
-@Entity(tableName = "transactions")
+// Every list and aggregate filters or orders by timestamp, so it carries an index.
+@Entity(tableName = "transactions", indices = [Index("timestamp")])
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amount: Long,
