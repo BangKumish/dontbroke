@@ -9,10 +9,12 @@ import androidx.navigation.navArgument
 import id.bangkumis.dontbroke.presentation.addtransaction.AddTransactionScreen
 import id.bangkumis.dontbroke.presentation.history.TransactionHistoryScreen
 import id.bangkumis.dontbroke.presentation.home.HomeScreen
+import id.bangkumis.dontbroke.presentation.settings.SettingsScreen
 
 private const val HOME = "home"
 private const val ADD = "add"
 private const val HISTORY = "history"
+private const val SETTINGS = "settings"
 
 @Composable
 fun AppNavGraph() {
@@ -22,9 +24,11 @@ fun AppNavGraph() {
             HomeScreen(
                 onAddTransaction = { nav.navigate(ADD) },
                 onEditTransaction = { id -> nav.navigate("$ADD?id=$id") },
-                onShowAllTransactions = { nav.navigate(HISTORY) }
+                onShowAllTransactions = { nav.navigate(HISTORY) },
+                onOpenSettings = { nav.navigate(SETTINGS) }
             )
         }
+        composable(SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(HISTORY) {
             TransactionHistoryScreen(
                 onBack = { nav.popBackStack() },

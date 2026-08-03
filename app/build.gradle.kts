@@ -86,6 +86,11 @@ dependencies {
     // pins the app's version into androidTest as `strictly`, so the two disagree
     // and lint/instrumentation fail to resolve. Naming it here settles both.
     implementation(libs.androidx.concurrent.futures)
+    // biometric-ktx pulls in fragment, which is why MainActivity can be a
+    // FragmentActivity — BiometricPrompt requires one.
+    implementation(libs.androidx.biometric.ktx)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.process)
 
     testImplementation(libs.junit)
     testImplementation(libs.sqlite.jdbc)

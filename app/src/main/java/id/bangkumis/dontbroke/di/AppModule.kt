@@ -11,7 +11,13 @@ import id.bangkumis.dontbroke.BuildConfig
 import id.bangkumis.dontbroke.data.database.AppDatabase
 import id.bangkumis.dontbroke.data.local.dao.AccountDao
 import id.bangkumis.dontbroke.data.local.dao.TransactionDao
+import id.bangkumis.dontbroke.data.preferences.UserPreferencesRepository
 import id.bangkumis.dontbroke.network.api.GeminiApi
+import id.bangkumis.dontbroke.security.AppLockManager
+import id.bangkumis.dontbroke.security.BiometricPromptManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -38,6 +44,22 @@ object AppModule {
 
     @Provides @Singleton
     fun provideAccountDao(db: AppDatabase): AccountDao = db.accountDao()
+
+    @Provides @Singleton
+    fun provideUserPreferences(@ApplicationContext ctx: Context) = UserPreferencesRepository(ctx)
+
+    @Provides @Singleton
+    fun provideBiometricPromptManager(@ApplicationContext ctx: Context) = BiometricPromptManager(ctx)
+
+    /**
+     * Main.immediate so lock state flips before the next frame — a dispatch hop
+     * here is a frame of visible balances on the way back from background.
+     */
+    @Provides @Singleton
+    fun provideAppLockManager(prefs: UserPreferencesRepository) = AppLockManager(
+        isEnabled = prefs.isBiometricEnabled,
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    )
 
     @Provides @Singleton
     fun provideOkHttp(): OkHttpClient = OkHttpClient.Builder()
