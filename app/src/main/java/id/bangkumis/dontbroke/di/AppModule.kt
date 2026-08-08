@@ -12,7 +12,7 @@ import id.bangkumis.dontbroke.data.database.AppDatabase
 import id.bangkumis.dontbroke.data.local.dao.AccountDao
 import id.bangkumis.dontbroke.data.local.dao.TransactionDao
 import id.bangkumis.dontbroke.data.preferences.UserPreferencesRepository
-import id.bangkumis.dontbroke.network.api.GeminiApi
+import id.bangkumis.dontbroke.network.api.HuggingFaceApi
 import id.bangkumis.dontbroke.security.AppLockManager
 import id.bangkumis.dontbroke.security.BiometricPromptManager
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +22,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -69,11 +70,28 @@ object AppModule {
         })
         .build()
 
+    /**
+     * The key rides on a per-API interceptor rather than the shared client, so a
+     * future Retrofit built on the same OkHttp does not leak it to another host.
+     * Read timeout is generous because a cold serverless model can sit in
+     * "loading" for well past OkHttp's 10s default.
+     */
     @Provides @Singleton
-    fun provideGeminiApi(client: OkHttpClient): GeminiApi = Retrofit.Builder()
-        .baseUrl("https://generativelanguage.googleapis.com/")
-        .client(client)
+    fun provideHuggingFaceApi(client: OkHttpClient): HuggingFaceApi = Retrofit.Builder()
+        .baseUrl("https://router.huggingface.co/")
+        .client(
+            client.newBuilder()
+                .readTimeout(60, TimeUnit.SECONDS)
+                .addInterceptor { chain ->
+                    chain.proceed(
+                        chain.request().newBuilder()
+                            .header("Authorization", "Bearer ${BuildConfig.HF_API_KEY}")
+                            .build()
+                    )
+                }
+                .build()
+        )
         .addConverterFactory(GsonConverterFactory.create())
         .build()
-        .create(GeminiApi::class.java)
+        .create(HuggingFaceApi::class.java)
 }

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 "Dont Broke" — an Android personal-finance tracker for Rupiah. Multiple wallets
 (cash, bank, e-wallet, e-money), per-account balances, spend windows, an analytics
-dashboard, and an optional Gemini-backed insight card.
+dashboard, and an optional Hugging Face-backed insight card.
 
 Kotlin · Jetpack Compose (Material 3) · MVVM · Room · Hilt · Retrofit · Coroutines
 minSdk 24 · targetSdk 36 · compileSdk 37 · JDK 11
@@ -24,7 +24,7 @@ minSdk 24 · targetSdk 36 · compileSdk 37 · JDK 11
 ```
 
 `local.properties` is git-ignored and required for a command-line build
-(`sdk.dir=/path/to/Android/Sdk`). `GEMINI_API_KEY` is optional — the app builds
+(`sdk.dir=/path/to/Android/Sdk`). `HF_API_KEY` is optional — the app builds
 and runs without it; the insight card just reports it could not load.
 
 AGP 8.13.2 is only tested to compileSdk 36.1, so every build prints a loud

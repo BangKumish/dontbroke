@@ -17,7 +17,7 @@ balances, and a spend counter for today, this week, and this month.
 - **Transaction history** — filtered by timeframe, category, account, or location,
   grouped by day with daily net balances.
 - **Swipe gestures** — swipe right to edit, swipe left to delete (with confirmation).
-- **AI insight** — an optional one-paragraph read on your spending, via Gemini.
+- **AI insight** — an optional one-paragraph read on your spending, via Hugging Face.
 
 ## Build
 
@@ -39,15 +39,15 @@ sdk.dir=/path/to/Android/Sdk
 ### AI insight (optional)
 
 The app builds and runs fine without a key — the insight card just reports that it
-could not load. To enable it, add your [Gemini API key](https://aistudio.google.com/apikey)
+could not load. To enable it, add your [Hugging Face access token](https://huggingface.co/settings/tokens)
 to `local.properties` (git-ignored) or export it:
 
 ```properties
-GEMINI_API_KEY=your-key-here
+HF_API_KEY=your-token-here
 ```
 
 ```bash
-export GEMINI_API_KEY=your-key-here
+export HF_API_KEY=your-token-here
 ```
 
 The key is injected as a `BuildConfig` field at build time and is never committed.
@@ -74,7 +74,7 @@ Kotlin · Jetpack Compose (Material 3) · MVVM · Room · Hilt · Retrofit · Co
 data/        Room entities, DAOs, migrations, repositories
 domain/      plain models + use cases
 presentation/  Compose screens + ViewModels
-network/     Gemini API
+network/     Hugging Face API
 di/          Hilt modules
 ```
 

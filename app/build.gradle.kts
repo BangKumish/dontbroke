@@ -24,16 +24,16 @@ android {
         // AI key: local.properties first, then -P/gradle.properties, then env.
         // findProperty() does NOT read local.properties — Gradle never loads that
         // file itself, which is why the key silently compiled to "" and every
-        // Gemini call came back 403.
+        // request came back 401.
         val localProps = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) f.inputStream().use { load(it) }
         }
-        val geminiKey = localProps.getProperty("GEMINI_API_KEY")
-            ?: (project.findProperty("GEMINI_API_KEY") as String?)
-            ?: System.getenv("GEMINI_API_KEY")
+        val hfKey = localProps.getProperty("HF_API_KEY")
+            ?: (project.findProperty("HF_API_KEY") as String?)
+            ?: System.getenv("HF_API_KEY")
             ?: ""
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
+        buildConfigField("String", "HF_API_KEY", "\"$hfKey\"")
     }
 
     buildTypes {

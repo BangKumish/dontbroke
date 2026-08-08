@@ -8,7 +8,7 @@ app/build/
 # Kotlin
 .kotlin/
 
-# Local machine config — contains sdk.dir and (optionally) your GEMINI_API_KEY.
+# Local machine config — contains sdk.dir and (optionally) your HF_API_KEY.
 # Never commit this.
 local.properties
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import id.bangkumis.dontbroke.BuildConfig
 import id.bangkumis.dontbroke.data.local.entity.AccountType
+import id.bangkumis.dontbroke.data.preferences.UserPreferencesRepository
 import id.bangkumis.dontbroke.data.repository.AccountRepository
 import id.bangkumis.dontbroke.data.repository.TransactionRepository
 import id.bangkumis.dontbroke.domain.model.Account
@@ -22,8 +23,10 @@ import id.bangkumis.dontbroke.domain.model.weekWindow
 import id.bangkumis.dontbroke.domain.usecase.GetCategorySpendingUseCase
 import id.bangkumis.dontbroke.domain.usecase.GetIncomeVsExpenseUseCase
 import id.bangkumis.dontbroke.domain.usecase.GetSpendingTrendUseCase
-import id.bangkumis.dontbroke.network.api.GeminiApi
-import id.bangkumis.dontbroke.network.model.GeminiRequest
+import id.bangkumis.dontbroke.network.api.HF_TEXT_MODEL
+import id.bangkumis.dontbroke.network.api.HuggingFaceApi
+import id.bangkumis.dontbroke.network.model.ChatMessage
+import id.bangkumis.dontbroke.network.model.ChatRequest
 import id.bangkumis.dontbroke.presentation.history.ALL
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -91,6 +94,17 @@ fun spendingTrendState(
     )
 }
 
+/** How long a fetched insight stays good. One hour. */
+const val INSIGHT_TTL_MS = 60 * 60 * 1000L
+
+/**
+ * Half-open `[0, TTL)`, like every other window in this codebase. A negative age
+ * means the cache was written in the future — the device clock moved backwards —
+ * so it counts as stale and gets refetched rather than trusted for an hour.
+ */
+fun isInsightFresh(cachedAtMillis: Long, nowMillis: Long): Boolean =
+    nowMillis - cachedAtMillis in 0 until INSIGHT_TTL_MS
+
 data class HomeUiState(
     val totalIncome: Long = 0,
     val totalExpense: Long = 0,
@@ -112,7 +126,8 @@ class HomeViewModel @Inject constructor(
     private val getCategorySpending: GetCategorySpendingUseCase,
     private val getSpendingTrend: GetSpendingTrendUseCase,
     private val getIncomeVsExpense: GetIncomeVsExpenseUseCase,
-    private val gemini: GeminiApi
+    private val ai: HuggingFaceApi,
+    private val prefs: UserPreferencesRepository
 ) : ViewModel() {
 
     // ponytail: windows are pinned when the ViewModel is created; a session
@@ -269,13 +284,20 @@ class HomeViewModel @Inject constructor(
     fun fetchInsight() {
         val s = _state.value
         if (s.isLoadingInsight) return
-        // a keyless request can only come back 403 — say why instead of firing it
-        if (BuildConfig.GEMINI_API_KEY.isBlank()) {
-            _state.update { it.copy(aiInsight = "No API key configured — set GEMINI_API_KEY in local.properties.") }
+        // a keyless request can only come back 401 — say why instead of firing it
+        if (BuildConfig.HF_API_KEY.isBlank()) {
+            _state.update { it.copy(aiInsight = "No API key configured — set HF_API_KEY in local.properties.") }
             return
         }
-        _state.update { it.copy(isLoadingInsight = true) }
         viewModelScope.launch {
+            val cached = prefs.cachedInsight.first()
+            // currentTimeMillis(), not a value captured at construction: this screen
+            // can outlive an hour, and a pinned "now" would keep the cache forever fresh
+            if (cached != null && isInsightFresh(cached.atMillis, System.currentTimeMillis())) {
+                _state.update { it.copy(aiInsight = cached.text) }
+                return@launch
+            }
+            _state.update { it.copy(isLoadingInsight = true) }
             val prompt = """
                 Monthly income: Rp ${s.totalIncome}
                 Total spent: Rp ${s.totalExpense}
@@ -283,23 +305,37 @@ class HomeViewModel @Inject constructor(
                 Spent today: Rp ${s.spentToday}, this week: Rp ${s.spentThisWeek}, this month: Rp ${s.spentThisMonth}
                 Give one concise financial insight in 2 sentences for an Indonesian user.
             """.trimIndent()
-            val insight = runCatching {
-                gemini.generateContent(request = GeminiRequest(
-                    listOf(GeminiRequest.Content(listOf(GeminiRequest.Part(prompt))))
-                )).text()
-            }.getOrElse { e ->
-                android.util.Log.e("HomeViewModel", "Gemini API error", e)
+            val result = runCatching {
+                ai.chat(
+                    ChatRequest(
+                        model = HF_TEXT_MODEL,
+                        messages = listOf(ChatMessage(role = "user", content = prompt))
+                    )
+                ).text()
+            }
+            val insight = result.getOrElse { e ->
+                android.util.Log.e("HomeViewModel", "Hugging Face API error", e)
                 when (e) {
                     is retrofit2.HttpException -> "API Error ${e.code()}: ${
-                        if (e.code() == 403) "Invalid API key — check BuildConfig.GEMINI_API_KEY"
-                        else if (e.code() == 429) "Rate limit exceeded"
-                        else e.message()
+                        when (e.code()) {
+                            401, 403 -> "Invalid API key — check BuildConfig.HF_API_KEY"
+                            429 -> "Rate limit exceeded"
+                            // serverless models cold-start; the retry is the user tapping again
+                            503 -> "Model is still loading — try again in a moment"
+                            else -> e.message()
+                        }
                     }"
-                    is java.net.UnknownHostException -> "No internet connection"
+                    // names the host: a retired endpoint fails here identically to
+                    // being offline, and "No internet connection" hid exactly that
+                    is java.net.UnknownHostException ->
+                        "No internet connection, or host not found: ${e.message ?: "unknown"}"
                     is java.net.SocketTimeoutException -> "Request timed out"
                     else -> "Could not load insight: ${e.message ?: e::class.simpleName}"
                 }
             }
+            // only a real answer is cached — caching an error would pin
+            // "No internet connection" on the card for the next hour
+            result.onSuccess { prefs.saveInsight(it, System.currentTimeMillis()) }
             _state.update { it.copy(aiInsight = insight, isLoadingInsight = false) }
         }
     }
