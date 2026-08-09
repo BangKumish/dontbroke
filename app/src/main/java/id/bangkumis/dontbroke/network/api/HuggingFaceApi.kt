@@ -6,7 +6,14 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 const val HF_TEXT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-const val HF_VISION_MODEL = "Qwen/Qwen2-VL-2B-Instruct"
+
+/**
+ * Verified against the live router with a real receipt. The 2B/3B/7B VL models are
+ * on the Hub but no router provider serves them — they answer HTTP 400 "not
+ * supported by any provider you have enabled", which is indistinguishable from a
+ * network failure at the call site. Check `GET /v1/models` before changing this.
+ */
+const val HF_VISION_MODEL = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 
 /**
  * Hugging Face's OpenAI-compatible router. The model is a body field, not a path

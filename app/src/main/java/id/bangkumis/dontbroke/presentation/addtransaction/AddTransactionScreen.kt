@@ -6,14 +6,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import id.bangkumis.dontbroke.data.local.entity.TransactionType
 import id.bangkumis.dontbroke.presentation.components.AddAccountDialog
+import id.bangkumis.dontbroke.presentation.scan.ReceiptCameraScreen
 import id.bangkumis.dontbroke.presentation.components.LabeledDropdown as Dropdown
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,8 +37,38 @@ fun AddTransactionScreen(
     val accounts by vm.accounts.collectAsState()
     var showDatePicker by remember { mutableStateOf(false) }
     var showAddAccount by remember { mutableStateOf(false) }
+    var showCamera by remember { mutableStateOf(false) }
+    val snackbars = remember { SnackbarHostState() }
 
     LaunchedEffect(state.saved) { if (state.saved) onBack() }
+
+    state.scanMessage?.let { message ->
+        LaunchedEffect(message) {
+            snackbars.showSnackbar(message)
+            vm.dismissScanMessage()
+        }
+    }
+
+    // Returns early: the viewfinder owns the whole window, and composing the form
+    // behind it would keep the camera bound to a screen nobody can see.
+    if (showCamera) {
+        ReceiptCameraScreen(
+            onCaptured = { bitmap ->
+                showCamera = false
+                vm.scanReceipt(bitmap)
+            },
+            onPicked = { uri ->
+                showCamera = false
+                vm.scanReceipt(uri)
+            },
+            onCancel = { showCamera = false },
+            onFailure = { message ->
+                showCamera = false
+                vm.reportScanError(message)
+            }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -45,12 +80,27 @@ fun AddTransactionScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbars) }
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Scan first: it fills the fields below, so it reads top-down.
+            OutlinedButton(
+                onClick = { showCamera = true },
+                enabled = !state.isScanning,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Star, not AutoAwesome: the sparkles icon lives in
+                // material-icons-extended, a dependency this app does not carry
+                // and not worth adding for one glyph.
+                Icon(Icons.Default.Star, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Pindai Struk / QRIS")
+            }
+
             // Type toggle
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TransactionType.entries.forEach { type ->
@@ -153,5 +203,31 @@ fun AddTransactionScreen(
                 showAddAccount = false
             }
         )
+    }
+
+    // Modal by construction: Dialog takes the back gesture and the scrim blocks
+    // the form, so nothing can be edited into a field the scan is about to fill.
+    if (state.isScanning) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(
+                    Modifier.padding(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Text(
+                        "Menganalisis struk dengan AI…",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }

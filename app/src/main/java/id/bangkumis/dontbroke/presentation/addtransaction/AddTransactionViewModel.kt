@@ -1,5 +1,7 @@
 package id.bangkumis.dontbroke.presentation.addtransaction
 
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,6 +12,10 @@ import id.bangkumis.dontbroke.data.repository.AccountRepository
 import id.bangkumis.dontbroke.data.repository.TransactionRepository
 import id.bangkumis.dontbroke.domain.model.Account
 import id.bangkumis.dontbroke.domain.model.Transaction
+import id.bangkumis.dontbroke.domain.usecase.ParsedReceiptResult
+import id.bangkumis.dontbroke.domain.usecase.ScanOutcome
+import id.bangkumis.dontbroke.domain.usecase.ScanReceiptUseCase
+import id.bangkumis.dontbroke.domain.usecase.matchAccount
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +52,10 @@ data class AddTransactionUiState(
     val location: String = "",
     val note: String = "",
     val date: Long = System.currentTimeMillis(),
-    val saved: Boolean = false
+    val saved: Boolean = false,
+    val isScanning: Boolean = false,
+    /** Set on a failed or partial scan; cleared once the user has seen it. */
+    val scanMessage: String? = null
 ) {
     val isEditing: Boolean get() = id != 0L
 
@@ -58,10 +67,34 @@ data class AddTransactionUiState(
         get() = (amount.toLongOrNull() ?: 0) > 0 && sourceOrAccount.isNotBlank()
 }
 
+/**
+ * Folds a scan into the form. A field the model left null keeps whatever the user
+ * already typed — a partial scan must never blank out a good manual entry. The
+ * account is only filled when the suggestion matches an account that exists,
+ * because `sourceOrAccount` joins to accounts by name: an invented name saves a
+ * row that counts toward no balance at all.
+ */
+fun AddTransactionUiState.applyScan(
+    scan: ParsedReceiptResult,
+    accountNames: List<String>
+): AddTransactionUiState {
+    val matched = matchAccount(scan.suggestedAccount, accountNames)
+    val unmatched = scan.suggestedAccount?.takeIf { matched == null && it.isNotBlank() }
+    return copy(
+        amount = scan.amount?.let { it.toLong().coerceAtLeast(0).toString() } ?: amount,
+        category = scan.category ?: category,
+        location = scan.location ?: location,
+        sourceOrAccount = matched ?: sourceOrAccount,
+        isScanning = false,
+        scanMessage = unmatched?.let { "Akun \"$it\" belum ada — pilih atau buat akunnya." }
+    )
+}
+
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     private val repo: TransactionRepository,
     private val accountRepo: AccountRepository,
+    private val scanReceipt: ScanReceiptUseCase,
     handle: SavedStateHandle
 ) : ViewModel() {
 
@@ -109,6 +142,37 @@ class AddTransactionViewModel @Inject constructor(
     fun onLocationChange(v: String) = _state.update { it.copy(location = v) }
     fun onNoteChange(v: String) = _state.update { it.copy(note = v) }
     fun onDateChange(v: Long) = _state.update { it.copy(date = v) }
+
+    fun dismissScanMessage() = _state.update { it.copy(scanMessage = null) }
+
+    /**
+     * Gallery path. The `Uri` is passed on rather than decoded here — the use case
+     * subsamples it, so a 12MP photo never lands in memory whole.
+     */
+    fun scanReceipt(uri: Uri) = runScan { scanReceipt(uri, _state.value.type) }
+
+    /** CameraX capture path: the frame arrives in memory, never as a file. */
+    fun scanReceipt(bitmap: Bitmap) = runScan { scanReceipt(bitmap, _state.value.type) }
+
+    /** Camera setup or permission failed; the screen already has the wording. */
+    fun reportScanError(message: String) = _state.update {
+        it.copy(isScanning = false, scanMessage = message)
+    }
+
+    private fun runScan(request: suspend ScanReceiptUseCase.() -> ScanOutcome) {
+        if (_state.value.isScanning) return
+        _state.update { it.copy(isScanning = true, scanMessage = null) }
+        viewModelScope.launch {
+            when (val outcome = scanReceipt.request()) {
+                is ScanOutcome.Success -> _state.update {
+                    it.applyScan(outcome.result, accounts.value.map(Account::name))
+                }
+                is ScanOutcome.Failure -> _state.update {
+                    it.copy(isScanning = false, scanMessage = outcome.message)
+                }
+            }
+        }
+    }
 
     fun save() {
         val s = _state.value

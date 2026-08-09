@@ -91,6 +91,9 @@ dependencies {
     implementation(libs.androidx.biometric.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.sqlite.jdbc)

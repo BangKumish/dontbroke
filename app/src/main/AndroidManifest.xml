@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Scanning is one feature, not the app: a camera-less device still tracks money. -->
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- PickVisualMedia goes through the photo picker, so no READ_MEDIA_* here. -->
     <application
         android:name=".DontBrokeApp"
         android:allowBackup="true"

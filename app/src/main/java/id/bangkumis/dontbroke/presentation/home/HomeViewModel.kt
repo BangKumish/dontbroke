@@ -314,6 +314,10 @@ class HomeViewModel @Inject constructor(
                 ).text()
             }
             val insight = result.getOrElse { e ->
+                // Cancellation is the screen going away, not an API failure —
+                // rethrow rather than painting "Could not load insight" onto a card
+                // that is being torn down. runCatching catches it otherwise.
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 android.util.Log.e("HomeViewModel", "Hugging Face API error", e)
                 when (e) {
                     is retrofit2.HttpException -> "API Error ${e.code()}: ${
